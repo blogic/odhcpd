@@ -350,6 +350,7 @@ static void clean_interface(struct interface *iface)
 	free(iface->dns_addrs4);
 	free(iface->dns_addrs6);
 	free(iface->dns_search);
+	free(iface->domain);
 	free(iface->upstream);
 	free(iface->dhcpv4_routers);
 	free(iface->dhcpv6_raw);
@@ -1453,6 +1454,10 @@ int config_parse_interface(void *data, size_t len, const char *name, bool overwr
 			iface->dns_search = tmp;
 			memcpy(&iface->dns_search[iface->dns_search_len], buf, ds_len);
 			iface->dns_search_len += ds_len;
+
+			/* Option 15 carries a single name, so the first wins */
+			if (!iface->domain)
+				iface->domain = strdup(domain);
 		}
 	}
 

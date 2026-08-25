@@ -458,6 +458,7 @@ struct interface {
 	size_t dns_addrs6_cnt;		// Count of IPv6 DNS addresses
 	uint8_t *dns_search;		// DNS domain search list to announce (concatenated)
 	size_t dns_search_len;		// Length of the DNS domain search list (bytes)
+	char *domain;			// First search domain, announced as DHCPv4 option 15
 
 	// DHCPV6
 	void *dhcpv6_raw;

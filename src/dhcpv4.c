@@ -789,6 +789,8 @@ enum {
 	IOV_AUTH_BODY,
 	IOV_SRCH_DOMAIN,
 	IOV_SRCH_DOMAIN_NAME,
+	IOV_DOMAIN,
+	IOV_DOMAIN_NAME,
 	IOV_FR_NONCE_CAP,
 	IOV_DNR,
 	IOV_DNR_BODY,
@@ -899,6 +901,9 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 	struct dhcpv4_option reply_srch_domain = {
 		.code = DHCPV4_OPT_DNS_DOMAIN_SEARCH,
 	};
+	struct dhcpv4_option reply_domain = {
+		.code = DHCPV4_OPT_DOMAIN,
+	};
 	struct dhcpv4_option_u8 reply_fr_nonce_cap = {
 		.code = DHCPV4_OPT_FORCERENEW_NONCE_CAPABLE,
 		.len = sizeof(uint8_t),
@@ -938,6 +943,8 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 		[IOV_AUTH_BODY]		= { &reply_auth_body, 0 },
 		[IOV_SRCH_DOMAIN]	= { &reply_srch_domain, 0 },
 		[IOV_SRCH_DOMAIN_NAME]	= { NULL, 0 },
+		[IOV_DOMAIN]		= { &reply_domain, 0 },
+		[IOV_DOMAIN_NAME]	= { NULL, 0 },
 		[IOV_FR_NONCE_CAP]	= { &reply_fr_nonce_cap, 0 },
 		[IOV_DNR]		= { &reply_dnr, 0 },
 		[IOV_DNR_BODY]		= { NULL, 0 },
@@ -961,6 +968,7 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 		DHCPV4_OPT_CLIENTID, // Must be in reply if present in req, RFC6842, §3
 		DHCPV4_OPT_AUTHENTICATION,
 		DHCPV4_OPT_DNS_DOMAIN_SEARCH,
+		DHCPV4_OPT_DOMAIN,
 		DHCPV4_OPT_CAPTIVE_PORTAL,
 		DHCPV4_OPT_FORCERENEW_NONCE_CAPABLE,
 	};
@@ -1220,6 +1228,22 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 				iov[IOV_SRCH_DOMAIN_NAME].iov_base = iface->dns_search;
 				iov[IOV_SRCH_DOMAIN_NAME].iov_len = iface->dns_search_len;
 			}
+			break;
+
+		case DHCPV4_OPT_DOMAIN:
+			size_t domainlen;
+
+			if (iov[IOV_DOMAIN].iov_len || !iface->domain)
+				break;
+
+			domainlen = strlen(iface->domain);
+			if (domainlen == 0 || domainlen > UINT8_MAX)
+				break;
+
+			reply_domain.len = domainlen;
+			iov[IOV_DOMAIN].iov_len = sizeof(reply_domain);
+			iov[IOV_DOMAIN_NAME].iov_base = iface->domain;
+			iov[IOV_DOMAIN_NAME].iov_len = domainlen;
 			break;
 
 		case DHCPV4_OPT_FORCERENEW_NONCE_CAPABLE:
