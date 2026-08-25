@@ -112,7 +112,7 @@ int main(int argc, char **argv)
 
 	while ((opt = getopt(argc, argv, "c:l:fuh")) != -1) {
 		switch (opt) {
-		case 'c':
+		case 'c': ;
 			struct stat sb;
 			char *path;
 

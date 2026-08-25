@@ -1266,7 +1266,7 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 			}
 			break;
 
-		case DHCPV4_OPT_DOMAIN:
+		case DHCPV4_OPT_DOMAIN: ;
 			size_t domainlen;
 
 			if (iov[IOV_DOMAIN].iov_len || !iface->domain)
@@ -1289,7 +1289,7 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 			iov[IOV_FR_NONCE_CAP].iov_len = sizeof(reply_fr_nonce_cap);
 			break;
 
-		case DHCPV4_OPT_DNR:
+		case DHCPV4_OPT_DNR: ;
 			struct dhcpv4_dnr *dnrs;
 			size_t dnrs_len = 0;
 
@@ -1363,7 +1363,7 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 				iov[IOV_IPV6_ONLY_PREF].iov_len = sizeof(reply_ipv6_only);
 			break;
 
-		case DHCPV4_OPT_CAPTIVE_PORTAL:
+		case DHCPV4_OPT_CAPTIVE_PORTAL: ;
 			size_t uri_len = iface->captive_portal_uri_len;
 			if (uri_len == 0 || uri_len > UINT8_MAX)
 				break;

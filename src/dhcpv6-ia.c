@@ -1182,7 +1182,7 @@ ssize_t dhcpv6_ia_handle_IAs(uint8_t *buf, size_t buflen, struct interface *ifac
 			a = NULL;
 		}
 
-proceed:
+proceed: ;
 		/* Generic message handling */
 		uint16_t status = DHCPV6_STATUS_OK;
 		bool assigned = false;

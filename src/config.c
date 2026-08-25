@@ -973,7 +973,7 @@ static int parse_dnr_str(char *str, struct interface *iface)
 			continue;
 
 		switch (svc_key) {
-		case DNR_SVC_MANDATORY:
+		case DNR_SVC_MANDATORY: ;
 			uint16_t mkeys[DNR_SVC_MAX];
 
 			svc_val_len = 0;
@@ -1011,7 +1011,7 @@ static int parse_dnr_str(char *str, struct interface *iface)
 			dnr.svc_len += 4 + svc_val_len;
 			break;
 
-		case DNR_SVC_ALPN:
+		case DNR_SVC_ALPN: ;
 			size_t len_off;
 
 			tmp = realloc(dnr.svc, dnr.svc_len + 4);
@@ -1049,7 +1049,7 @@ static int parse_dnr_str(char *str, struct interface *iface)
 			memcpy(dnr.svc + len_off, &svc_val_len_be, sizeof(svc_val_len_be));
 			break;
 
-		case DNR_SVC_PORT:
+		case DNR_SVC_PORT: ;
 			uint16_t port;
 
 			if (sscanf(svc_val_str, "%" SCNu16, &port) != 1) {
@@ -1101,13 +1101,13 @@ static int parse_dnr_str(char *str, struct interface *iface)
 			goto err;
 
 		case DNR_SVC_IPV4HINT:
-		case DNR_SVC_IPV6HINT:
+		case DNR_SVC_IPV6HINT: ;
 			error("SvcParam '%s' is not allowed", svc_param_key_names[svc_key]);
 			goto err;
 		}
 	}
 
-done:
+done: ;
 	struct dnr_options *tmp;
 	tmp = realloc(iface->dnr, (iface->dnr_cnt + 1) * sizeof(dnr));
 	if (!tmp)
