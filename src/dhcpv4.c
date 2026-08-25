@@ -1163,7 +1163,20 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 	for (size_t i = 0; i < sizeof(std_opts) + req_opts_len; i++) {
 		uint8_t r_opt = i < sizeof(std_opts) ? std_opts[i] : req_opts[i - sizeof(std_opts)];
 
-		/* A configured value replaces the one odhcpd would derive */
+		/* A configured value replaces the one odhcpd would derive, and
+		 * this host's own replaces the interface's */
+		if (lease && lease->lease_cfg &&
+		    dhcpv4_extra_has(lease->lease_cfg->dhcpv4_opts,
+				     lease->lease_cfg->dhcpv4_opts_len, r_opt)) {
+			reply_extra_len = dhcpv4_extra_add(reply_extra,
+							   sizeof(reply_extra),
+							   reply_extra_len,
+							   lease->lease_cfg->dhcpv4_opts,
+							   lease->lease_cfg->dhcpv4_opts_len,
+							   r_opt);
+			continue;
+		}
+
 		if (dhcpv4_extra_has(iface->dhcpv4_opts, iface->dhcpv4_opts_len, r_opt)) {
 			reply_extra_len = dhcpv4_extra_add(reply_extra,
 							   sizeof(reply_extra),

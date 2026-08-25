@@ -322,6 +322,8 @@ struct lease_cfg {
 	struct duid *duids;
 	uint32_t leasetime;		// duration of granted leases, UINT32_MAX = inf
 	char *hostname;
+	uint8_t *dhcpv4_opts;		// Options from this host's list dhcp_option
+	size_t dhcpv4_opts_len;
 	bool ignore4;
 	bool ignore6;
 };
@@ -516,6 +518,7 @@ enum {
 	LEASE_CFG_ATTR_HOSTID,
 	LEASE_CFG_ATTR_LEASETIME,
 	LEASE_CFG_ATTR_NAME,
+	LEASE_CFG_ATTR_DHCP_OPTION,
 	LEASE_CFG_ATTR_MAX
 };
 extern const struct blobmsg_policy lease_cfg_attrs[LEASE_CFG_ATTR_MAX];

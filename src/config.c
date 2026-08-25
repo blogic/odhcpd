@@ -215,6 +215,7 @@ const struct blobmsg_policy lease_cfg_attrs[LEASE_CFG_ATTR_MAX] = {
 	[LEASE_CFG_ATTR_HOSTID] = { .name = "hostid", .type = BLOBMSG_TYPE_STRING },
 	[LEASE_CFG_ATTR_LEASETIME] = { .name = "leasetime", .type = BLOBMSG_TYPE_STRING },
 	[LEASE_CFG_ATTR_NAME] = { .name = "name", .type = BLOBMSG_TYPE_STRING },
+	[LEASE_CFG_ATTR_DHCP_OPTION] = { .name = "dhcp_option", .type = BLOBMSG_TYPE_ARRAY },
 };
 
 const struct uci_blob_param_list lease_cfg_attr_list = {
@@ -821,6 +822,7 @@ static void free_lease_cfg(struct lease_cfg *lease_cfg)
 		return;
 
 	free(lease_cfg->hostname);
+	free(lease_cfg->dhcpv4_opts);
 	free(lease_cfg);
 }
 
@@ -931,6 +933,22 @@ int config_set_lease_cfg_from_blobmsg(struct blob_attr *ba)
 		lease_cfg->hostname = strdup(blobmsg_get_string(c));
 		if (!lease_cfg->hostname)
 			goto err;
+	}
+
+	if ((c = tb[LEASE_CFG_ATTR_DHCP_OPTION])) {
+		struct blob_attr *cur;
+		unsigned rem;
+
+		blobmsg_for_each_attr(cur, c, rem) {
+			if (blobmsg_type(cur) != BLOBMSG_TYPE_STRING ||
+			    !blobmsg_check_attr(cur, false))
+				continue;
+
+			dhcp_option_parse(blobmsg_get_string(cur),
+					  &lease_cfg->dhcpv4_opts,
+					  &lease_cfg->dhcpv4_opts_len,
+					  lease_cfg->hostname ?: "host");
+		}
 	}
 
 	if ((c = tb[LEASE_CFG_ATTR_IPV4])) {
