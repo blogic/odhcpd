@@ -460,6 +460,13 @@ struct interface {
 	size_t dns_search_len;		// Length of the DNS domain search list (bytes)
 	char *domain;			// First search domain, announced as DHCPv4 option 15
 
+	// Options from list dhcp_option, encoded as back-to-back code/len/value.
+	// The forced set goes out whether or not the client asked for it.
+	uint8_t *dhcpv4_opts;
+	size_t dhcpv4_opts_len;
+	uint8_t *dhcpv4_opts_force;
+	size_t dhcpv4_opts_force_len;
+
 	// DHCPV6
 	void *dhcpv6_raw;
 	size_t dhcpv6_raw_len;
