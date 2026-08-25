@@ -18,6 +18,7 @@
 #include <libubox/vlist.h>
 
 #include "odhcpd.h"
+#include "dhcpv4-options.h"
 #include "router.h"
 #include "dhcpv6-pxe.h"
 #include "dhcpv4.h"
@@ -348,237 +349,6 @@ static void set_interface_defaults(struct interface *iface)
 	iface->ra_dns = true;
 	iface->pio_update = false;
 	iface->update_statefile = true;
-}
-
-enum dhcp_option_type {
-	DHCP_OPT_TYPE_INFER,	/* IPv4 list if every value parses, else string */
-	DHCP_OPT_TYPE_IP,
-	DHCP_OPT_TYPE_U8,
-	DHCP_OPT_TYPE_U16,
-	DHCP_OPT_TYPE_U32,
-	DHCP_OPT_TYPE_STRING,
-	DHCP_OPT_TYPE_HEX,
-};
-
-/*
- * The dnsmasq names in common use, with the type that stops a value being
- * encoded as the wrong thing: without it mtu would go out as the four
- * characters "1500". Any other option is still available by number, where an
- * IPv4 list is recognised, 0x... is raw bytes and anything else is a string.
- */
-static const struct {
-	const char *name;
-	uint8_t code;
-	enum dhcp_option_type type;
-} dhcp_option_names[] = {
-	{ "netmask",		1,	DHCP_OPT_TYPE_IP },
-	{ "router",		3,	DHCP_OPT_TYPE_IP },
-	{ "dns-server",		6,	DHCP_OPT_TYPE_IP },
-	{ "domain-name",	15,	DHCP_OPT_TYPE_STRING },
-	{ "mtu",		26,	DHCP_OPT_TYPE_U16 },
-	{ "broadcast",		28,	DHCP_OPT_TYPE_IP },
-	{ "ntp-server",		42,	DHCP_OPT_TYPE_IP },
-	{ "lease-time",		51,	DHCP_OPT_TYPE_U32 },
-	{ "tftp-server",	66,	DHCP_OPT_TYPE_STRING },
-	{ "bootfile-name",	67,	DHCP_OPT_TYPE_STRING },
-	{ "classless-static-route", 121, DHCP_OPT_TYPE_HEX },
-};
-
-static enum dhcp_option_type dhcp_option_type_for(uint8_t code)
-{
-	for (size_t i = 0; i < ARRAY_SIZE(dhcp_option_names); i++) {
-		if (dhcp_option_names[i].code == code)
-			return dhcp_option_names[i].type;
-	}
-
-	return DHCP_OPT_TYPE_INFER;
-}
-
-static int dhcp_option_code_of(const char *key, enum dhcp_option_type *type)
-{
-	char *end;
-	unsigned long code;
-
-	if (!strncmp(key, "option:", 7))
-		key += 7;
-
-	code = strtoul(key, &end, 10);
-	if (*key && !*end) {
-		if (code < 1 || code > 254)
-			return -1;
-
-		*type = dhcp_option_type_for(code);
-		return code;
-	}
-
-	for (size_t i = 0; i < ARRAY_SIZE(dhcp_option_names); i++) {
-		if (strcmp(key, dhcp_option_names[i].name))
-			continue;
-
-		*type = dhcp_option_names[i].type;
-		return dhcp_option_names[i].code;
-	}
-
-	return -1;
-}
-
-static ssize_t dhcp_option_hex(const char *value, uint8_t *buf, size_t buflen)
-{
-	size_t len = 0;
-
-	if (!strncmp(value, "0x", 2))
-		value += 2;
-
-	while (*value && len < buflen) {
-		char pair[3] = { value[0], value[1], 0 };
-		char *end;
-		unsigned long byte;
-
-		if (!value[1])
-			return -1;
-
-		byte = strtoul(pair, &end, 16);
-		if (*end)
-			return -1;
-
-		buf[len++] = byte;
-		value += 2;
-
-		if (*value == ':' || *value == '-')
-			value++;
-	}
-
-	return *value ? -1 : (ssize_t)len;
-}
-
-static ssize_t dhcp_option_encode(const char *value, enum dhcp_option_type type,
-				  uint8_t *buf, size_t buflen)
-{
-	size_t len = 0;
-	unsigned width = 0;
-
-	if (!strncmp(value, "0x", 2))
-		return dhcp_option_hex(value, buf, buflen);
-
-	switch (type) {
-	case DHCP_OPT_TYPE_STRING:
-		len = strlen(value);
-		if (len > buflen)
-			return -1;
-		memcpy(buf, value, len);
-		return len;
-
-	case DHCP_OPT_TYPE_HEX:
-		return dhcp_option_hex(value, buf, buflen);
-
-	case DHCP_OPT_TYPE_U8:
-		width = 1;
-		break;
-	case DHCP_OPT_TYPE_U16:
-		width = 2;
-		break;
-	case DHCP_OPT_TYPE_U32:
-		width = 4;
-		break;
-	default:
-		break;
-	}
-
-	while (*value) {
-		const char *comma = strchr(value, ',');
-		size_t vlen = comma ? (size_t)(comma - value) : strlen(value);
-		char item[64];
-
-		if (vlen >= sizeof(item))
-			return -1;
-
-		memcpy(item, value, vlen);
-		item[vlen] = 0;
-
-		if (width) {
-			char *end;
-			unsigned long long num = strtoull(item, &end, 0);
-
-			if (*end || len + width > buflen)
-				return -1;
-			if (width < 8 && num >= (1ULL << (width * 8)))
-				return -1;
-
-			for (unsigned i = 0; i < width; i++)
-				buf[len + i] = (num >> ((width - 1 - i) * 8)) & 0xff;
-			len += width;
-		} else {
-			struct in_addr addr;
-
-			if (inet_pton(AF_INET, item, &addr) != 1)
-				return -1;
-			if (len + sizeof(addr) > buflen)
-				return -1;
-
-			memcpy(buf + len, &addr, sizeof(addr));
-			len += sizeof(addr);
-		}
-
-		if (!comma)
-			break;
-		value = comma + 1;
-	}
-
-	return len;
-}
-
-/*
- * One `list dhcp_option` entry, in the dnsmasq syntax OpenWrt already passes
- * through: [option:]<name|code>,<value>[,<value>...]
- */
-static bool dhcp_option_parse(const char *spec, uint8_t **opts, size_t *opts_len,
-			      const char *ifname)
-{
-	enum dhcp_option_type type = DHCP_OPT_TYPE_INFER;
-	uint8_t buf[UINT8_MAX];
-	const char *comma = strchr(spec, ',');
-	char key[64];
-	ssize_t len;
-	uint8_t *tmp;
-	int code;
-
-	if (!comma || (size_t)(comma - spec) >= sizeof(key)) {
-		error("Invalid dhcp_option '%s' on interface '%s'", spec, ifname);
-		return false;
-	}
-
-	memcpy(key, spec, comma - spec);
-	key[comma - spec] = 0;
-
-	code = dhcp_option_code_of(key, &type);
-	if (code < 0) {
-		error("Unknown dhcp_option '%s' on interface '%s'", key, ifname);
-		return false;
-	}
-
-	len = dhcp_option_encode(comma + 1, type, buf, sizeof(buf));
-	if (len < 0 && type == DHCP_OPT_TYPE_INFER)
-		len = dhcp_option_encode(comma + 1, DHCP_OPT_TYPE_STRING,
-					 buf, sizeof(buf));
-
-	if (len < 0) {
-		error("Invalid dhcp_option value '%s' on interface '%s'",
-		      comma + 1, ifname);
-		return false;
-	}
-
-	tmp = realloc(*opts, *opts_len + 2 + len);
-	if (!tmp)
-		return false;
-
-	*opts = tmp;
-	tmp += *opts_len;
-	tmp[0] = code;
-	tmp[1] = len;
-	memcpy(tmp + 2, buf, len);
-	*opts_len += 2 + len;
-
-	return true;
 }
 
 static void clean_interface(struct interface *iface)
@@ -944,10 +714,15 @@ int config_set_lease_cfg_from_blobmsg(struct blob_attr *ba)
 			    !blobmsg_check_attr(cur, false))
 				continue;
 
-			dhcp_option_parse(blobmsg_get_string(cur),
-					  &lease_cfg->dhcpv4_opts,
-					  &lease_cfg->dhcpv4_opts_len,
-					  lease_cfg->hostname ?: "host");
+			const char *spec = blobmsg_get_string(cur);
+			enum dhcpv4_option_status rc;
+
+			rc = dhcpv4_option_parse(spec, &lease_cfg->dhcpv4_opts,
+						 &lease_cfg->dhcpv4_opts_len);
+			if (rc != DHCPV4_OPTION_OK)
+				error("Invalid dhcp_option '%s' for host '%s': %s",
+				      spec, lease_cfg->hostname ?: "?",
+				      dhcpv4_option_strerror(rc));
 		}
 	}
 
@@ -1588,8 +1363,14 @@ int config_parse_interface(void *data, size_t len, const char *name, bool overwr
 			    !blobmsg_check_attr(cur, false))
 				continue;
 
-			dhcp_option_parse(blobmsg_get_string(cur), opts, opts_len,
-					  iface->name);
+			const char *spec = blobmsg_get_string(cur);
+			enum dhcpv4_option_status rc;
+
+			rc = dhcpv4_option_parse(spec, opts, opts_len);
+			if (rc != DHCPV4_OPTION_OK)
+				error("Invalid dhcp_option '%s' on interface '%s': %s",
+				      spec, iface->name,
+				      dhcpv4_option_strerror(rc));
 		}
 	}
 

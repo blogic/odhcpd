@@ -73,7 +73,7 @@ endif(${UBUS})
 
 if(${DHCPV4_SUPPORT})
 	target_compile_definitions(${PROJECT_NAME} PRIVATE DHCPV4_SUPPORT)
-	target_sources(${PROJECT_NAME} PRIVATE src/dhcpv4.c)
+	target_sources(${PROJECT_NAME} PRIVATE src/dhcpv4.c src/dhcpv4-options.c)
 endif(${DHCPV4_SUPPORT})
 
 

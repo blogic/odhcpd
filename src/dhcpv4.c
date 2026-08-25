@@ -34,6 +34,7 @@
 
 #include "odhcpd.h"
 #include "dhcpv4.h"
+#include "dhcpv4-options.h"
 #include "dhcpv6.h"
 #include "statefiles.h"
 
@@ -768,49 +769,6 @@ static void dhcpv4_set_dest_addr(const struct interface *iface,
 /* Most bytes of `list dhcp_option` values one reply may carry */
 #define DHCPV4_EXTRA_OPTS_MAX 512
 
-static bool dhcpv4_extra_has(const uint8_t *buf, size_t len, uint8_t code)
-{
-	for (size_t i = 0; i + 1 < len; i += 2 + buf[i + 1]) {
-		if (buf[i] == code)
-			return true;
-	}
-
-	return false;
-}
-
-/**
- * dhcpv4_extra_add - copy one configured option into the reply buffer
- * @dst: reply buffer
- * @cap: its size
- * @used: bytes already in it
- * @opts: the interface's encoded options
- * @opts_len: their length
- * @code: the option wanted, or 0 for every one of them
- *
- * Returns the new used count. An option that does not fit is left out rather
- * than truncated, because a truncated option is not a shorter option, it is a
- * malformed reply.
- */
-static size_t dhcpv4_extra_add(uint8_t *dst, size_t cap, size_t used,
-			       const uint8_t *opts, size_t opts_len, uint8_t code)
-{
-	for (size_t i = 0; i + 1 < opts_len; i += 2 + opts[i + 1]) {
-		size_t tlv = 2 + opts[i + 1];
-
-		if (code && opts[i] != code)
-			continue;
-		if (dhcpv4_extra_has(dst, used, opts[i]))
-			continue;
-		if (used + tlv > cap)
-			continue;
-
-		memcpy(dst + used, opts + i, tlv);
-		used += tlv;
-	}
-
-	return used;
-}
-
 enum {
 	IOV_HEADER = 0,
 	IOV_MESSAGE,
@@ -968,7 +926,7 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 	uint8_t reply_extra[DHCPV4_EXTRA_OPTS_MAX];
 	size_t reply_extra_len;
 
-	reply_extra_len = dhcpv4_extra_add(reply_extra, sizeof(reply_extra), 0,
+	reply_extra_len = dhcpv4_option_copy(reply_extra, sizeof(reply_extra), 0,
 					   iface->dhcpv4_opts_force,
 					   iface->dhcpv4_opts_force_len, 0);
 
@@ -1166,9 +1124,9 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 		/* A configured value replaces the one odhcpd would derive, and
 		 * this host's own replaces the interface's */
 		if (lease && lease->lease_cfg &&
-		    dhcpv4_extra_has(lease->lease_cfg->dhcpv4_opts,
+		    dhcpv4_option_present(lease->lease_cfg->dhcpv4_opts,
 				     lease->lease_cfg->dhcpv4_opts_len, r_opt)) {
-			reply_extra_len = dhcpv4_extra_add(reply_extra,
+			reply_extra_len = dhcpv4_option_copy(reply_extra,
 							   sizeof(reply_extra),
 							   reply_extra_len,
 							   lease->lease_cfg->dhcpv4_opts,
@@ -1177,8 +1135,8 @@ void dhcpv4_handle_msg(void *src_addr, void *data, size_t len,
 			continue;
 		}
 
-		if (dhcpv4_extra_has(iface->dhcpv4_opts, iface->dhcpv4_opts_len, r_opt)) {
-			reply_extra_len = dhcpv4_extra_add(reply_extra,
+		if (dhcpv4_option_present(iface->dhcpv4_opts, iface->dhcpv4_opts_len, r_opt)) {
+			reply_extra_len = dhcpv4_option_copy(reply_extra,
 							   sizeof(reply_extra),
 							   reply_extra_len,
 							   iface->dhcpv4_opts,
