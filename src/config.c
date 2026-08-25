@@ -2279,23 +2279,34 @@ void odhcpd_reload(void)
 
 
 	avl_for_each_element_safe(&interfaces, i, avl, tmp) {
-		if (i->inuse && i->ifflags & IFF_RUNNING) {
-			/* Resolve hybrid mode */
-			if (i->dhcpv6 == MODE_HYBRID)
-				i->dhcpv6 = (master && master->dhcpv6 == MODE_RELAY) ?
-						MODE_RELAY : MODE_SERVER;
-
-			if (i->ra == MODE_HYBRID)
-				i->ra = (master && master->ra == MODE_RELAY) ?
-						MODE_RELAY : MODE_SERVER;
-
-			if (i->ndp == MODE_HYBRID)
-				i->ndp = (master && master->ndp == MODE_RELAY) ?
-						MODE_RELAY : MODE_DISABLED;
-
-			reload_services(i);
-		} else
+		/*
+		 * Only an interface that left the configuration is closed.
+		 * close_interface() removes it from `interfaces` and frees it,
+		 * and the netlink link handler looks an event up in that tree,
+		 * so closing one that is merely down means no later carrier
+		 * can bring it back. reload_services() disables services while
+		 * the interface is not running and enables them when netlink
+		 * reports that it is.
+		 */
+		if (!i->inuse) {
 			close_interface(i);
+			continue;
+		}
+
+		/* Resolve hybrid mode */
+		if (i->dhcpv6 == MODE_HYBRID)
+			i->dhcpv6 = (master && master->dhcpv6 == MODE_RELAY) ?
+					MODE_RELAY : MODE_SERVER;
+
+		if (i->ra == MODE_HYBRID)
+			i->ra = (master && master->ra == MODE_RELAY) ?
+					MODE_RELAY : MODE_SERVER;
+
+		if (i->ndp == MODE_HYBRID)
+			i->ndp = (master && master->ndp == MODE_RELAY) ?
+					MODE_RELAY : MODE_DISABLED;
+
+		reload_services(i);
 	}
 
 	uci_free_context(uci);
