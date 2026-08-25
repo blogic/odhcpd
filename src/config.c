@@ -140,6 +140,7 @@ enum {
 	IFACE_ATTR_CAPTIVE_PORTAL_URI,
 	IFACE_ATTR_IPV6_ONLY_PREFERRED,
 	IFACE_ATTR_DHCPV6_RELAY_SERVERS,
+	IFACE_ATTR_IGNORE,
 	IFACE_ATTR_MAX
 };
 
@@ -195,6 +196,7 @@ static const struct blobmsg_policy iface_attrs[IFACE_ATTR_MAX] = {
 	[IFACE_ATTR_CAPTIVE_PORTAL_URI] = { .name = "captive_portal_uri", .type = BLOBMSG_TYPE_STRING },
 	[IFACE_ATTR_IPV6_ONLY_PREFERRED] = { .name = "ipv6_only_preferred", .type = BLOBMSG_TYPE_INT32 },
 	[IFACE_ATTR_DHCPV6_RELAY_SERVERS] = { .name = "dhcpv6_relay_servers", .type = BLOBMSG_TYPE_ARRAY },
+	[IFACE_ATTR_IGNORE] = { .name = "ignore", .type = BLOBMSG_TYPE_BOOL },
 };
 
 const struct uci_blob_param_list interface_attr_list = {
@@ -1308,6 +1310,15 @@ int config_parse_interface(void *data, size_t len, const char *name, bool overwr
 		} else
 			error("Invalid %s mode configured for interface '%s'",
 			      iface_attrs[IFACE_ATTR_NDP].name, iface->name);
+	}
+
+	/* Parsed last so it overrides the four mode options above */
+	if ((c = tb[IFACE_ATTR_IGNORE]) && blobmsg_get_bool(c)) {
+		iface->ra = MODE_DISABLED;
+		iface->dhcpv4 = MODE_DISABLED;
+		iface->dhcpv6 = MODE_DISABLED;
+		iface->ndp = MODE_DISABLED;
+		iface->ignore = true;
 	}
 
 	if ((c = tb[IFACE_ATTR_ROUTER])) {
